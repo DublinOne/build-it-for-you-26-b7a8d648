@@ -1,7 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SettingsApp: React.FC = () => {
-  const [wallpaper, setWallpaper] = useState(() => localStorage.getItem('webos-wallpaper') || 'gradient1');
+  const { user, signOut } = useAuth();
+  const [wallpaper, setWallpaper] = useState('gradient1');
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('user_settings')
+      .select('wallpaper')
+      .eq('user_id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.wallpaper) {
+          setWallpaper(data.wallpaper);
+          window.dispatchEvent(new CustomEvent('webos-wallpaper-change', { detail: data.wallpaper }));
+        }
+      });
+  }, [user]);
 
   const wallpapers: { id: string; label: string; style: string }[] = [
     { id: 'gradient1', label: 'Deep Space', style: 'bg-gradient-to-br from-[#0f1729] via-[#1a1040] to-[#0f1729]' },
@@ -10,10 +28,12 @@ const SettingsApp: React.FC = () => {
     { id: 'gradient4', label: 'Sunset', style: 'bg-gradient-to-br from-[#1a1040] via-[#2d1b3d] to-[#0f1729]' },
   ];
 
-  const handleSelect = (id: string) => {
+  const handleSelect = async (id: string) => {
     setWallpaper(id);
-    localStorage.setItem('webos-wallpaper', id);
     window.dispatchEvent(new CustomEvent('webos-wallpaper-change', { detail: id }));
+    if (user) {
+      await supabase.from('user_settings').update({ wallpaper: id }).eq('user_id', user.id);
+    }
   };
 
   return (
@@ -32,6 +52,20 @@ const SettingsApp: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {user && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2">Account</h3>
+          <p className="text-xs text-muted-foreground mb-3">{user.email}</p>
+          <button
+            onClick={signOut}
+            className="text-xs px-4 py-2 rounded-lg bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors"
+          >
+            Sign Out
+          </button>
+        </div>
+      )}
+
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-2">About</h3>
         <div className="text-sm text-muted-foreground space-y-1">
